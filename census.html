@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Census — Program &amp; i18n Headcount</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#0a0c11;
+  --panel:#12151d;
+  --panel-2:#161a24;
+  --border:#242938;
+  --border-soft:#1b1f2b;
+  --text:#e6e8ef;
+  --muted:#828aa0;
+  --muted-2:#5b6376;
+  --gold:#d4a24c;
+  --gold-dim:#8a713b;
+  --teal:#5fb3ad;
+  --rose:#d4776f;
+  --green:#7fb87f;
+  --mono:'IBM Plex Mono', ui-monospace, monospace;
+  --sans:'Inter', -apple-system, sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:
+    radial-gradient(circle at 15% 0%, rgba(212,162,76,0.06), transparent 40%),
+    radial-gradient(circle at 85% 10%, rgba(95,179,173,0.05), transparent 45%),
+    var(--bg);
+  color:var(--text);
+  font-family:var(--sans);
+  min-height:100vh;
+  padding:0 0 80px 0;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px;}
+
+/* ---- header ---- */
+header{
+  padding:44px 0 28px 0;
+  border-bottom:1px solid var(--border-soft);
+  margin-bottom:32px;
+}
+.eyebrow{
+  font-family:var(--mono);
+  font-size:11px;
+  letter-spacing:0.18em;
+  text-transform:uppercase;
+  color:var(--gold);
+  margin-bottom:10px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.eyebrow::before{
+  content:'';
+  width:7px;height:7px;border-radius:50%;
+  background:var(--gold);
+  box-shadow:0 0 8px rgba(212,162,76,0.7);
+}
+h1{
+  font-family:var(--mono);
+  font-size:32px;
+  font-weight:600;
+  margin:0 0 8px 0;
+  letter-spacing:-0.01em;
+}
+.sub{color:var(--muted);font-size:14.5px;max-width:640px;line-height:1.55;}
+
+/* ---- upload zone ---- */
+.upload-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+  margin-bottom:20px;
+}
+@media (max-width:720px){.upload-grid{grid-template-columns:1fr;}}
+.dropzone{
+  background:var(--panel);
+  border:1.5px dashed var(--border);
+  border-radius:10px;
+  padding:22px;
+  cursor:pointer;
+  transition:border-color .15s ease, background .15s ease;
+  position:relative;
+}
+.dropzone:hover{border-color:var(--gold-dim);}
+.dropzone.drag{border-color:var(--gold);background:var(--panel-2);}
+.dropzone.loaded{border-style:solid;border-color:var(--green);}
+.dz-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.dz-label{font-family:var(--mono);font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);}
+.dz-status{font-family:var(--mono);font-size:11px;color:var(--muted-2);}
+.dz-status.ok{color:var(--green);}
+.dz-name{font-size:14px;font-weight:500;margin-bottom:4px;word-break:break-all;}
+.dz-hint{font-size:12.5px;color:var(--muted-2);}
+.dz-icon{font-family:var(--mono);color:var(--muted-2);font-size:18px;}
+input[type=file]{display:none;}
+
+.status-bar{
+  display:flex;gap:10px;align-items:center;
+  font-family:var(--mono);font-size:12.5px;color:var(--muted);
+  margin-bottom:36px;min-height:18px;
+}
+.status-bar .pill{
+  background:var(--panel-2);border:1px solid var(--border-soft);
+  border-radius:20px;padding:3px 10px;color:var(--muted);
+}
+.status-bar .pill.err{color:var(--rose);border-color:rgba(212,119,111,0.4);}
+
+/* ---- section shell ---- */
+section.block{margin-bottom:44px;}
+.block-head{
+  display:flex;align-items:baseline;justify-content:space-between;
+  margin-bottom:16px;flex-wrap:wrap;gap:10px;
+}
+.block-title{
+  font-family:var(--mono);font-size:13px;letter-spacing:0.1em;text-transform:uppercase;
+  color:var(--text);display:flex;align-items:center;gap:8px;
+}
+.block-title .n{color:var(--gold);}
+.block-desc{color:var(--muted-2);font-size:12.5px;margin-top:3px;}
+
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+select{
+  background:var(--panel-2);color:var(--text);border:1px solid var(--border);
+  border-radius:6px;padding:6px 10px;font-family:var(--sans);font-size:13px;
+}
+button.btn{
+  background:var(--panel-2);color:var(--text);border:1px solid var(--border);
+  border-radius:6px;padding:6px 12px;font-family:var(--sans);font-size:13px;
+  cursor:pointer;transition:border-color .15s ease, color .15s ease;
+}
+button.btn:hover{border-color:var(--gold-dim);color:var(--gold);}
+button.btn.primary{border-color:var(--gold-dim);color:var(--gold);}
+button.btn:disabled{opacity:0.35;cursor:not-allowed;}
+
+/* ---- summary cards ---- */
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:8px;}
+@media (max-width:900px){.cards{grid-template-columns:repeat(2,1fr);}}
+.card{
+  background:var(--panel);border:1px solid var(--border-soft);border-radius:10px;
+  padding:16px 18px;
+}
+.card .val{font-family:var(--mono);font-size:26px;font-weight:600;color:var(--text);}
+.card .lbl{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;margin-top:4px;}
+.card.warn .val{color:var(--rose);}
+.card.good .val{color:var(--green);}
+
+/* ---- tables ---- */
+.table-wrap{
+  background:var(--panel);border:1px solid var(--border-soft);border-radius:10px;
+  overflow:hidden;
+}
+table{width:100%;border-collapse:collapse;font-size:13.5px;}
+thead th{
+  text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:0.06em;text-transform:uppercase;
+  color:var(--muted);padding:12px 16px;background:var(--panel-2);border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+thead th.num, td.num{text-align:right;}
+tbody td{padding:10px 16px;border-bottom:1px solid var(--border-soft);color:var(--text);}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:rgba(255,255,255,0.015);}
+tbody tr.total-row td{
+  font-weight:600;border-top:1px solid var(--border);background:var(--panel-2);
+}
+td.num, th.num{font-family:var(--mono);}
+.bar-cell{display:flex;align-items:center;gap:10px;}
+.bar-track{flex:1;height:6px;background:var(--border-soft);border-radius:3px;overflow:hidden;min-width:60px;}
+.bar-fill{height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));border-radius:3px;}
+.tag{
+  font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:4px;
+  border:1px solid var(--border);color:var(--muted);
+}
+.tag.lead{color:var(--teal);border-color:rgba(95,179,173,0.35);}
+.tag.pm{color:var(--gold);border-color:rgba(212,162,76,0.35);}
+.tag.mismatch-odw{color:var(--rose);border-color:rgba(212,119,111,0.35);}
+.tag.mismatch-ap{color:var(--teal);border-color:rgba(95,179,173,0.35);}
+
+.empty{
+  padding:40px 20px;text-align:center;color:var(--muted-2);font-size:13.5px;
+}
+
+.mismatch-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media (max-width:900px){.mismatch-grid{grid-template-columns:1fr;}}
+
+footer{
+  margin-top:60px;padding-top:20px;border-top:1px solid var(--border-soft);
+  color:var(--muted-2);font-size:11.5px;font-family:var(--mono);
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;
+}
+
+.hidden{display:none !important;}
+
+.detail-toggle{
+  font-family:var(--mono);font-size:11.5px;color:var(--muted-2);cursor:pointer;
+  padding:10px 16px;border-top:1px solid var(--border-soft);user-select:none;
+}
+.detail-toggle:hover{color:var(--gold);}
+.detail-toggle::before{content:'▸ ';}
+.detail-toggle.open::before{content:'▾ ';}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">ODW × Contract Reconciliation</div>
+    <h1>Census</h1>
+    <div class="sub">Upload the ODW export and the active/paused contracts export. Census counts unique active workers per program (Analysts / Leads / Program Managers), breaks out international analysts by language team, and flags where the two files disagree.</div>
+  </header>
+
+  <div class="upload-grid">
+    <label class="dropzone" id="dz-odw">
+      <input type="file" id="file-odw" accept=".csv">
+      <div class="dz-top">
+        <span class="dz-label">ODW export</span>
+        <span class="dz-status" id="status-odw">not loaded</span>
+      </div>
+      <div class="dz-name" id="name-odw">Drop odw.csv here, or click to browse</div>
+      <div class="dz-hint">Needs: Upwork ID, First/Last Name, G-Code, Status, Team</div>
+    </label>
+
+    <label class="dropzone" id="dz-ap">
+      <input type="file" id="file-ap" accept=".csv">
+      <div class="dz-top">
+        <span class="dz-label">Active / Paused contracts</span>
+        <span class="dz-status" id="status-ap">not loaded</span>
+      </div>
+      <div class="dz-name" id="name-ap">Drop active-paused.csv here, or click to browse</div>
+      <div class="dz-hint">Needs: Freelancer User ID, Freelancer Name, G-Code, Status</div>
+    </label>
+  </div>
+
+  <div class="status-bar" id="status-bar"></div>
+
+  <div id="app-body" class="hidden">
+
+    <section class="block">
+      <div class="block-head">
+        <div>
+          <div class="block-title">Overview</div>
+          <div class="block-desc">Unique headcount (Active or Paused), deduplicated by ID</div>
+        </div>
+      </div>
+      <div class="cards" id="summary-cards"></div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <div>
+          <div class="block-title">01 · Program Counts</div>
+          <div class="block-desc">Unique ODW headcount (Active or Paused) per program, split by role. Role is decided by G-Code (cl-1/2/3 → Lead, pm-1 → Program Manager, everything else → Analyst; Danilo Vuletic is always counted as Program Manager).</div>
+        </div>
+        <div class="controls">
+          <button class="btn" id="export-counts">Export CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap"><div id="counts-table"></div></div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <div>
+          <div class="block-title">02 · i18n Team Counts</div>
+          <div class="block-desc">International analysts only (English, Leads and Program Managers excluded; Active or Paused), grouped by language from the G-Code prefix, split by level. Defaults to Content Curation — use the dropdown for other programs or the combined view.</div>
+        </div>
+        <div class="controls">
+          <select id="i18n-program-filter"></select>
+          <button class="btn" id="export-i18n">Export CSV</button>
+        </div>
+      </div>
+      <div class="table-wrap"><div id="i18n-table"></div></div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <div>
+          <div class="block-title">03 · ODW vs. Contracts Reconciliation</div>
+          <div class="block-desc">Headcount rule: Active or Paused counts, in either file. ODW workers vs. contract workers, each deduplicated by ID (a worker can hold more than one contract).</div>
+        </div>
+        <div class="controls">
+          <button class="btn" id="export-mismatch">Export CSV</button>
+        </div>
+      </div>
+      <div class="cards" id="recon-cards" style="margin-bottom:16px;"></div>
+      <div class="mismatch-grid">
+        <div class="table-wrap">
+          <div class="detail-toggle open" data-target="mm-odw">In ODW (Active/Paused), not found in contracts headcount</div>
+          <div id="mm-odw"></div>
+        </div>
+        <div class="table-wrap">
+          <div class="detail-toggle open" data-target="mm-ap">In contracts (Active/Paused), not found in ODW headcount</div>
+          <div id="mm-ap"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="block-head">
+        <div>
+          <div class="block-title">Export everything</div>
+          <div class="block-desc">One workbook — Counts, i18n Teams, and Reconciliation as separate sheets</div>
+        </div>
+        <div class="controls">
+          <button class="btn primary" id="export-all">Download .xlsx</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <footer>
+    <span>Census — runs entirely in your browser. Nothing is uploaded anywhere.</span>
+    <span id="footer-meta"></span>
+  </footer>
+
+</div>
+
+<script>
+/* ============================================================
+   Census — ODW × Contracts reconciliation
+   All processing happens client-side. No file ever leaves the browser.
+   ============================================================ */
+
+/* ---------- language map: G-Code prefix -> display name ---------- */
+const LANG_MAP = {
+  'ar':'Arabic', 'ca':'Catalan', 'cs':'Czech', 'de':'German', 'es-419':'Spanish LatAm',
+  'fi':'Finnish', 'fr':'French', 'hu':'Hungarian', 'id':'Indonesian', 'it':'Italian',
+  'iw':'Hebrew', 'ja':'Japanese', 'ko':'Korean', 'nl':'Dutch', 'no':'Norwegian',
+  'pl':'Polish', 'pt':'Portuguese BR', 'ru':'Russian', 'sv':'Swedish', 'th':'Thai',
+  'tr':'Turkish', 'uk':'Ukrainian', 'vi':'Vietnamese', 'zh-cn':'Chinese Simp', 'zh-tw':'Chinese Trad',
+  'bg':'Bulgarian', 'my':'Burmese', 'hr':'Croatian', 'da':'Danish', 'el':'Greek',
+  'kn':'Kannada', 'km':'Khmer', 'lv':'Latvian', 'lt':'Lithuanian', 'ms':'Malay',
+  'fa':'Persian', 'ro':'Romanian', 'sr':'Serbian', 'si':'Sinhala', 'sk':'Slovak',
+  'sl':'Slovenian', 'ta':'Tamil', 'uz':'Uzbek', 'zu':'Zulu', 'fil':'Filipino'
+};
+
+/* G-Code prefixes that are never counted as an i18n language.
+   'su' is excluded on request — those rows are not tracked as an i18n team. */
+const NON_LANGUAGE_PREFIXES = ['en', 'en11', 'cl', 'pm', 'su'];
+
+/* name exception: always counted as Program Manager regardless of G-Code.
+   Last names in the ODW export are frequently truncated to an initial, so
+   match on first name + last-initial rather than a full-name string. */
+const PM_EXCEPTIONS = [{ first: 'danilo', lastInitial: 'v' }];
+
+/* ---------- state ---------- */
+const state = {
+  odwRows: null,
+  apRows: null,
+  odwFile: null,
+  apFile: null,
+  computed: null,
+};
+
+/* ================= helpers ================= */
+
+function norm(s) {
+  return (s || '').toString().trim();
+}
+function normLower(s) {
+  return norm(s).toLowerCase();
+}
+function fullName(row, firstKey, lastKey) {
+  return norm(norm(row[firstKey]) + ' ' + norm(row[lastKey])).replace(/\s+/g, ' ');
+}
+
+/** Given a Team string like "Content Curation - Analysts", return
+ *  { program: "Content Curation", roleWord: "Analysts" } or
+ *  { program: <team as-is>, roleWord: null } if no recognizable suffix. */
+function splitTeamSuffix(team) {
+  const t = norm(team);
+  const dashMatch = t.match(/^(.*?)\s*-\s*(Analysts?|Leads?|Program Managers?|PM|CL)\s*$/i);
+  if (dashMatch) {
+    return { program: dashMatch[1].trim(), roleWord: dashMatch[2].trim() };
+  }
+  const spaceMatch = t.match(/^(.*\S)\s+(Analysts?|Leads?|Program Managers?)\s*$/i);
+  if (spaceMatch && spaceMatch[1].trim().split(/\s+/).length >= 1) {
+    return { program: spaceMatch[1].trim(), roleWord: spaceMatch[2].trim() };
+  }
+  return { program: t, roleWord: null };
+}
+
+function deriveProgram(team) {
+  const { program } = splitTeamSuffix(team);
+  return program || '(No Team / Unclassified)';
+}
+
+function isNameException(row) {
+  const first = normLower(row['First Name']);
+  const last = normLower(row['Last Name']);
+  return PM_EXCEPTIONS.some(ex => first === ex.first && last.startsWith(ex.lastInitial));
+}
+
+/** Role category purely from G-Code + name exception, per spec. */
+function roleCategory(row) {
+  if (isNameException(row)) return 'Program Manager';
+  const gc = normLower(row['G-Code']);
+  if (gc.startsWith('cl-')) return 'Lead';
+  if (gc.startsWith('pm-')) return 'Program Manager';
+  return 'Analyst';
+}
+
+/** Parse a G-Code into { prefix, level } e.g. "es-419-1" -> {prefix:"es-419", level:"1"} */
+function parseGCode(gcode) {
+  const gc = normLower(gcode);
+  const m = gc.match(/^(.*)-(\d+)$/);
+  if (!m) return { prefix: gc, level: null };
+  return { prefix: m[1], level: m[2] };
+}
+
+function isInternationalAnalystCode(gcode) {
+  const { prefix } = parseGCode(gcode);
+  if (!prefix) return false;
+  return !NON_LANGUAGE_PREFIXES.some(p => prefix === p || prefix.startsWith(p + '-') || prefix === p);
+}
+
+function languageForPrefix(prefix) {
+  return LANG_MAP[prefix] || null;
+}
+
+/* Headcount rule: a worker counts if they are Active OR Paused, in either
+   file. Only Terminated (or similar) rows are excluded. */
+function isHeadcountStatus(s) {
+  const v = normLower(s);
+  return v === 'active' || v === 'paused';
+}
+
+/* ================= CSV loading ================= */
+
+function parseCSVFile(file) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      transformHeader: h => h.trim(),
+      complete: (res) => resolve(res.data),
+      error: (err) => reject(err),
+    });
+  });
+}
+
+async function handleFile(kind, file) {
+  if (!file) return;
+  const dz = document.getElementById(kind === 'odw' ? 'dz-odw' : 'dz-ap');
+  const nameEl = document.getElementById(kind === 'odw' ? 'name-odw' : 'name-ap');
+  const statusEl = document.getElementById(kind === 'odw' ? 'status-odw' : 'status-ap');
+  nameEl.textContent = file.name;
+  statusEl.textContent = 'parsing…';
+  statusEl.classList.remove('ok');
+  try {
+    const rows = await parseCSVFile(file);
+    if (kind === 'odw') {
+      state.odwRows = rows;
+      state.odwFile = file;
+    } else {
+      state.apRows = rows;
+      state.apFile = file;
+    }
+    statusEl.textContent = `${rows.length.toLocaleString()} rows`;
+    statusEl.classList.add('ok');
+    dz.classList.add('loaded');
+    setStatusBar(`Loaded ${file.name} (${rows.length.toLocaleString()} rows).`);
+  } catch (err) {
+    statusEl.textContent = 'parse failed';
+    setStatusBar(`Could not parse ${file.name}: ${err.message || err}`, true);
+    return;
+  }
+  if (state.odwRows && state.apRows) {
+    runAnalysis();
+  }
+}
+
+function setStatusBar(msg, isErr) {
+  const bar = document.getElementById('status-bar');
+  const pill = document.createElement('span');
+  pill.className = 'pill' + (isErr ? ' err' : '');
+  pill.textContent = msg;
+  bar.innerHTML = '';
+  bar.appendChild(pill);
+}
+
+/* ================= wire up dropzones ================= */
+
+function wireDropzone(kind) {
+  const dz = document.getElementById(kind === 'odw' ? 'dz-odw' : 'dz-ap');
+  const input = document.getElementById(kind === 'odw' ? 'file-odw' : 'file-ap');
+  input.addEventListener('change', (e) => handleFile(kind, e.target.files[0]));
+  ['dragenter', 'dragover'].forEach(evt =>
+    dz.addEventListener(evt, (e) => { e.preventDefault(); dz.classList.add('drag'); }));
+  ['dragleave', 'drop'].forEach(evt =>
+    dz.addEventListener(evt, (e) => { e.preventDefault(); dz.classList.remove('drag'); }));
+  dz.addEventListener('drop', (e) => {
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(kind, f);
+  });
+}
+wireDropzone('odw');
+wireDropzone('ap');
+
+document.querySelectorAll('.detail-toggle').forEach(t => {
+  t.addEventListener('click', () => {
+    t.classList.toggle('open');
+    const target = document.getElementById(t.dataset.target);
+    target.classList.toggle('hidden');
+  });
+});
+
+/* ================= analysis ================= */
+
+function runAnalysis() {
+  const odwActiveAll = state.odwRows.filter(r => isHeadcountStatus(r['Status']));
+
+  // dedupe by Upwork ID, keep first
+  const seenIds = new Set();
+  const odwActive = [];
+  for (const r of odwActiveAll) {
+    const id = normLower(r['Upwork ID']);
+    if (!id || seenIds.has(id)) continue;
+    seenIds.add(id);
+    odwActive.push(r);
+  }
+
+  // attach derived fields
+  for (const r of odwActive) {
+    r.__id = normLower(r['Upwork ID']);
+    r.__name = fullName(r, 'First Name', 'Last Name');
+    r.__program = deriveProgram(r['Team']);
+    r.__role = roleCategory(r);
+    const { prefix, level } = parseGCode(r['G-Code']);
+    r.__gcPrefix = prefix;
+    r.__gcLevel = level;
+    r.__isIntl = r.__role === 'Analyst' && isInternationalAnalystCode(r['G-Code']);
+    r.__lang = r.__isIntl ? (languageForPrefix(prefix) || `Other (${prefix})`) : null;
+  }
+
+  // ----- contracts (active-paused) -----
+  const apActiveAll = state.apRows.filter(r => isHeadcountStatus(r['Status']));
+  const seenApIds = new Set();
+  const apActive = [];
+  for (const r of apActiveAll) {
+    const id = normLower(r['Freelancer User ID']);
+    if (!id || seenApIds.has(id)) continue;
+    seenApIds.add(id);
+    apActive.push(r);
+  }
+  const apIdToRow = new Map(apActive.map(r => [normLower(r['Freelancer User ID']), r]));
+  const apAllIdToStatuses = new Map(); // id -> set of statuses seen anywhere in file (for context on mismatches)
+  for (const r of state.apRows) {
+    const id = normLower(r['Freelancer User ID']);
+    if (!id) continue;
+    if (!apAllIdToStatuses.has(id)) apAllIdToStatuses.set(id, new Set());
+    apAllIdToStatuses.get(id).add(norm(r['Status']));
+  }
+  const odwAllIdToStatuses = new Map();
+  for (const r of state.odwRows) {
+    const id = normLower(r['Upwork ID']);
+    if (!id) continue;
+    if (!odwAllIdToStatuses.has(id)) odwAllIdToStatuses.set(id, new Set());
+    odwAllIdToStatuses.get(id).add(norm(r['Status']));
+  }
+
+  const onlyInOdw = odwActive.filter(r => !apIdToRow.has(r.__id)).map(r => ({
+    id: r['Upwork ID'], name: r.__name, program: r.__program, role: r.__role,
+    gcode: r['G-Code'], contractsStatus: apAllIdToStatuses.has(r.__id)
+      ? [...apAllIdToStatuses.get(r.__id)].join(', ') : 'not found',
+  }));
+  const onlyInAp = apActive.filter(r => !seenIds.has(normLower(r['Freelancer User ID']))).map(r => ({
+    id: r['Freelancer User ID'], name: r['Freelancer Name'], team: r['Team Name'],
+    gcode: r['G-Code'], odwStatus: odwAllIdToStatuses.has(normLower(r['Freelancer User ID']))
+      ? [...odwAllIdToStatuses.get(normLower(r['Freelancer User ID']))].join(', ') : 'not found',
+  }));
+
+  // ----- program x role pivot -----
+  const programSet = new Set(odwActive.map(r => r.__program));
+  const programs = [...programSet].sort((a, b) => a.localeCompare(b));
+  const roleOrder = ['Analyst', 'Lead', 'Program Manager'];
+  const pivot = {}; // program -> {Analyst:n, Lead:n, 'Program Manager':n}
+  for (const p of programs) pivot[p] = { Analyst: 0, Lead: 0, 'Program Manager': 0 };
+  for (const r of odwActive) {
+    pivot[r.__program][r.__role]++;
+  }
+
+  // ----- i18n table (all programs + per-program breakdown) -----
+  const intlAnalysts = odwActive.filter(r => r.__isIntl);
+  const levels = ['1', '2', '3'];
+  function buildI18nTable(rows) {
+    const byLang = {};
+    for (const r of rows) {
+      const lang = r.__lang;
+      if (!byLang[lang]) byLang[lang] = { total: 0, l1: 0, l2: 0, l3: 0 };
+      byLang[lang].total++;
+      if (r.__gcLevel === '1') byLang[lang].l1++;
+      else if (r.__gcLevel === '2') byLang[lang].l2++;
+      else if (r.__gcLevel === '3') byLang[lang].l3++;
+    }
+    return byLang;
+  }
+  const i18nByProgram = {}; // program -> byLang table
+  i18nByProgram['All Programs'] = buildI18nTable(intlAnalysts);
+  for (const p of programs) {
+    i18nByProgram[p] = buildI18nTable(intlAnalysts.filter(r => r.__program === p));
+  }
+
+  state.computed = {
+    odwActive, apActive, programs, pivot, roleOrder,
+    onlyInOdw, onlyInAp, i18nByProgram, intlAnalysts,
+  };
+
+  render();
+}
+
+/* ================= rendering ================= */
+
+function fmt(n) { return n.toLocaleString(); }
+
+function renderSummaryCards() {
+  const c = state.computed;
+  const el = document.getElementById('summary-cards');
+  const matched = c.odwActive.length - c.onlyInOdw.length;
+  el.innerHTML = `
+    <div class="card"><div class="val">${fmt(c.odwActive.length)}</div><div class="lbl">ODW (Active/Paused)</div></div>
+    <div class="card"><div class="val">${fmt(c.apActive.length)}</div><div class="lbl">Contracts (Active/Paused)</div></div>
+    <div class="card good"><div class="val">${fmt(matched)}</div><div class="lbl">Matched both files</div></div>
+    <div class="card ${(c.onlyInOdw.length + c.onlyInAp.length) ? 'warn' : ''}"><div class="val">${fmt(c.onlyInOdw.length + c.onlyInAp.length)}</div><div class="lbl">Discrepancies</div></div>
+  `;
+}
+
+function renderCountsTable() {
+  const c = state.computed;
+  const el = document.getElementById('counts-table');
+  if (!c.programs.length) { el.innerHTML = '<div class="empty">No active rows found.</div>'; return; }
+
+  const totals = { Analyst: 0, Lead: 0, 'Program Manager': 0 };
+  let grand = 0;
+  const maxTotal = Math.max(...c.programs.map(p => c.pivot[p].Analyst + c.pivot[p].Lead + c.pivot[p]['Program Manager']));
+
+  let rows = '';
+  for (const p of c.programs) {
+    const row = c.pivot[p];
+    const total = row.Analyst + row.Lead + row['Program Manager'];
+    totals.Analyst += row.Analyst; totals.Lead += row.Lead; totals['Program Manager'] += row['Program Manager'];
+    grand += total;
+    const barPct = maxTotal ? Math.round((total / maxTotal) * 100) : 0;
+    rows += `<tr>
+      <td>${escapeHtml(p)}</td>
+      <td class="num">${fmt(row.Analyst)}</td>
+      <td class="num">${fmt(row.Lead)}</td>
+      <td class="num">${fmt(row['Program Manager'])}</td>
+      <td class="num"><div class="bar-cell"><span>${fmt(total)}</span><div class="bar-track"><div class="bar-fill" style="width:${barPct}%"></div></div></div></td>
+    </tr>`;
+  }
+  rows += `<tr class="total-row">
+    <td>Total</td>
+    <td class="num">${fmt(totals.Analyst)}</td>
+    <td class="num">${fmt(totals.Lead)}</td>
+    <td class="num">${fmt(totals['Program Manager'])}</td>
+    <td class="num">${fmt(grand)}</td>
+  </tr>`;
+
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Program</th><th class="num">Analysts</th><th class="num">Leads</th><th class="num">Program Managers</th><th class="num">Total</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function populateI18nFilter() {
+  const c = state.computed;
+  const sel = document.getElementById('i18n-program-filter');
+  const current = sel.value;
+  sel.innerHTML = '';
+  // only offer programs that actually have at least one international analyst
+  const programsWithIntl = c.programs.filter(p => Object.keys(c.i18nByProgram[p] || {}).length > 0);
+  const opts = ['All Programs', ...programsWithIntl];
+  for (const p of opts) {
+    const o = document.createElement('option');
+    o.value = p; o.textContent = p;
+    sel.appendChild(o);
+  }
+  if (!state.i18nFilterInitialized) {
+    // default to Content Curation when present, matching how this table has
+    // historically been scoped — otherwise fall back to combined view.
+    sel.value = opts.includes('Content Curation') ? 'Content Curation' : 'All Programs';
+    state.i18nFilterInitialized = true;
+  } else if (opts.includes(current)) {
+    sel.value = current;
+  }
+}
+
+function renderI18nTable() {
+  const c = state.computed;
+  const sel = document.getElementById('i18n-program-filter');
+  const scope = sel.value || 'All Programs';
+  const byLang = c.i18nByProgram[scope] || {};
+  const el = document.getElementById('i18n-table');
+  const langs = Object.keys(byLang).sort((a, b) => byLang[b].total - byLang[a].total);
+
+  if (!langs.length) { el.innerHTML = '<div class="empty">No international analysts in this scope.</div>'; return; }
+
+  let totals = { total: 0, l1: 0, l2: 0, l3: 0 };
+  let rows = '';
+  for (const lang of langs) {
+    const row = byLang[lang];
+    totals.total += row.total; totals.l1 += row.l1; totals.l2 += row.l2; totals.l3 += row.l3;
+    rows += `<tr>
+      <td>${escapeHtml(lang)}</td>
+      <td class="num">${fmt(row.total)}</td>
+      <td class="num">${fmt(row.l1)}</td>
+      <td class="num">${fmt(row.l2)}</td>
+      <td class="num">${fmt(row.l3)}</td>
+    </tr>`;
+  }
+  rows += `<tr class="total-row">
+    <td>TOTAL i18n workers</td>
+    <td class="num">${fmt(totals.total)}</td>
+    <td class="num">${fmt(totals.l1)}</td>
+    <td class="num">${fmt(totals.l2)}</td>
+    <td class="num">${fmt(totals.l3)}</td>
+  </tr>`;
+
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Language</th><th class="num">Total HC / team</th><th class="num">Level 1</th><th class="num">Level 2</th><th class="num">Level 3</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderReconCards() {
+  const c = state.computed;
+  const el = document.getElementById('recon-cards');
+  el.innerHTML = `
+    <div class="card ${c.onlyInOdw.length ? 'warn' : 'good'}"><div class="val">${fmt(c.onlyInOdw.length)}</div><div class="lbl">In ODW only (no active contract)</div></div>
+    <div class="card ${c.onlyInAp.length ? 'warn' : 'good'}"><div class="val">${fmt(c.onlyInAp.length)}</div><div class="lbl">In contracts only (not headcount in ODW)</div></div>
+  `;
+}
+
+function renderMismatchTables() {
+  const c = state.computed;
+  const odwEl = document.getElementById('mm-odw');
+  const apEl = document.getElementById('mm-ap');
+
+  if (!c.onlyInOdw.length) {
+    odwEl.innerHTML = '<div class="empty">None — every active ODW worker has a matching active contract.</div>';
+  } else {
+    odwEl.innerHTML = `<table><thead><tr><th>ID</th><th>Name</th><th>Program</th><th>Role</th><th>G-Code</th><th>In contracts file</th></tr></thead><tbody>
+      ${c.onlyInOdw.map(r => `<tr>
+        <td>${escapeHtml(r.id)}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.program)}</td>
+        <td><span class="tag ${r.role === 'Lead' ? 'lead' : r.role === 'Program Manager' ? 'pm' : ''}">${escapeHtml(r.role)}</span></td>
+        <td>${escapeHtml(r.gcode)}</td><td><span class="tag mismatch-odw">${escapeHtml(r.contractsStatus)}</span></td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  }
+
+  if (!c.onlyInAp.length) {
+    apEl.innerHTML = '<div class="empty">None — every active contract has a matching active ODW row.</div>';
+  } else {
+    apEl.innerHTML = `<table><thead><tr><th>ID</th><th>Name</th><th>Team</th><th>G-Code</th><th>In ODW file</th></tr></thead><tbody>
+      ${c.onlyInAp.map(r => `<tr>
+        <td>${escapeHtml(r.id)}</td><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.team)}</td>
+        <td>${escapeHtml(r.gcode)}</td><td><span class="tag mismatch-ap">${escapeHtml(r.odwStatus)}</span></td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  }
+}
+
+function escapeHtml(s) {
+  return (s === null || s === undefined ? '' : String(s))
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function render() {
+  document.getElementById('app-body').classList.remove('hidden');
+  renderSummaryCards();
+  renderCountsTable();
+  populateI18nFilter();
+  renderI18nTable();
+  renderReconCards();
+  renderMismatchTables();
+  document.getElementById('footer-meta').textContent =
+    `ODW: ${state.odwFile.name} · Contracts: ${state.apFile.name} · generated ${new Date().toLocaleString()}`;
+  setStatusBar(`Analysis complete — ${fmt(state.computed.odwActive.length)} active workers processed.`);
+}
+
+document.getElementById('i18n-program-filter').addEventListener('change', renderI18nTable);
+
+/* ================= exports ================= */
+
+function downloadBlob(content, filename, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function toCsv(headers, rows) {
+  const esc = (v) => {
+    const s = (v === null || v === undefined) ? '' : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  return [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\r\n');
+}
+
+function countsRowsForExport() {
+  const c = state.computed;
+  const rows = c.programs.map(p => {
+    const row = c.pivot[p];
+    return [p, row.Analyst, row.Lead, row['Program Manager'], row.Analyst + row.Lead + row['Program Manager']];
+  });
+  const totals = ['Total', 0, 0, 0, 0];
+  for (const r of rows) { totals[1] += r[1]; totals[2] += r[2]; totals[3] += r[3]; totals[4] += r[4]; }
+  rows.push(totals);
+  return rows;
+}
+
+function i18nRowsForExport(scope) {
+  const c = state.computed;
+  const byLang = c.i18nByProgram[scope] || {};
+  const langs = Object.keys(byLang).sort((a, b) => byLang[b].total - byLang[a].total);
+  const rows = langs.map(l => [l, byLang[l].total, byLang[l].l1, byLang[l].l2, byLang[l].l3]);
+  const totals = ['TOTAL i18n workers', 0, 0, 0, 0];
+  for (const r of rows) { totals[1] += r[1]; totals[2] += r[2]; totals[3] += r[3]; totals[4] += r[4]; }
+  rows.push(totals);
+  return rows;
+}
+
+document.getElementById('export-counts').addEventListener('click', () => {
+  const csv = toCsv(['Program', 'Analysts', 'Leads', 'Program Managers', 'Total'], countsRowsForExport());
+  downloadBlob(csv, 'census-program-counts.csv', 'text/csv');
+});
+
+document.getElementById('export-i18n').addEventListener('click', () => {
+  const scope = document.getElementById('i18n-program-filter').value || 'All Programs';
+  const csv = toCsv(['Language', 'Total HC/team', 'Level 1', 'Level 2', 'Level 3'], i18nRowsForExport(scope));
+  downloadBlob(csv, `census-i18n-${scope.replace(/\s+/g, '_')}.csv`, 'text/csv');
+});
+
+document.getElementById('export-mismatch').addEventListener('click', () => {
+  const c = state.computed;
+  const lines = [];
+  lines.push('In ODW (Active/Paused), not found active in contracts');
+  lines.push(toCsv(['ID', 'Name', 'Program', 'Role', 'G-Code', 'Status in contracts file'],
+    c.onlyInOdw.map(r => [r.id, r.name, r.program, r.role, r.gcode, r.contractsStatus])));
+  lines.push('');
+  lines.push('In contracts (Active/Paused), not found in ODW headcount');
+  lines.push(toCsv(['ID', 'Name', 'Team', 'G-Code', 'Status in ODW file'],
+    c.onlyInAp.map(r => [r.id, r.name, r.team, r.gcode, r.odwStatus])));
+  downloadBlob(lines.join('\r\n'), 'census-reconciliation.csv', 'text/csv');
+});
+
+document.getElementById('export-all').addEventListener('click', () => {
+  const c = state.computed;
+  const wb = XLSX.utils.book_new();
+
+  const countsAoa = [['Program', 'Analysts', 'Leads', 'Program Managers', 'Total'], ...countsRowsForExport()];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(countsAoa), 'Counts');
+
+  const i18nAoa = [['Language', 'Total HC/team', 'Level 1', 'Level 2', 'Level 3'], ...i18nRowsForExport('All Programs')];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(i18nAoa), 'i18n Teams (All)');
+
+  for (const p of c.programs) {
+    const rows = i18nRowsForExport(p);
+    if (rows.length === 1) continue; // only the totals row, i.e. nothing international here
+    const aoa = [['Language', 'Total HC/team', 'Level 1', 'Level 2', 'Level 3'], ...rows];
+    const sheetName = `i18n - ${p}`.slice(0, 31);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), sheetName);
+  }
+
+  const reconOdwAoa = [
+    ['In ODW (Active/Paused), not found active in contracts'],
+    ['ID', 'Name', 'Program', 'Role', 'G-Code', 'Status in contracts file'],
+    ...c.onlyInOdw.map(r => [r.id, r.name, r.program, r.role, r.gcode, r.contractsStatus]),
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(reconOdwAoa), 'Recon - ODW only');
+
+  const reconApAoa = [
+    ['In contracts (Active/Paused), not found in ODW headcount'],
+    ['ID', 'Name', 'Team', 'G-Code', 'Status in ODW file'],
+    ...c.onlyInAp.map(r => [r.id, r.name, r.team, r.gcode, r.odwStatus]),
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(reconApAoa), 'Recon - Contracts only');
+
+  XLSX.writeFile(wb, `census-${new Date().toISOString().slice(0, 10)}.xlsx`);
+});
+
+</script>
+</body>
+</html>
